@@ -132,21 +132,7 @@ int classify_beat(Features f) {
 
 ---
 
-## 5. Hardware Signal Acquisition & Validation
-
-To validate our signal acquisition front-end, we captured and analyzed raw ECG signals using a digital storage oscilloscope (Hantek DSO5072P) connected directly to our custom breadboard circuit.
-
-The images below demonstrate a clear, high-quality ECG signal (with distinct QRS complexes) acquired through our analog front-end prior to any digital filtering on the ESP32.
-
-![Hardware Setup](docs/hardware_tests/hardware_setup.jpeg)
-*Figure 5: The complete hardware test setup including the analog front-end circuit, Arduino, and digital oscilloscope.*
-
-![Oscilloscope ECG Signal](docs/hardware_tests/oscilloscope_ecg_1.jpeg)
-*Figure 6: A close-up view of the raw ECG waveform on the oscilloscope, showing excellent signal clarity and distinct QRS complexes.*
-
----
-
-## 6. Repository Structure
+## 5. Repository Structure
 
 ```text
 ecg-pvc-detection-esp32/
@@ -168,7 +154,7 @@ ecg-pvc-detection-esp32/
 
 ---
 
-## 7. How to Run the Pipeline
+## 6. How to Run the Pipeline
 
 ```bash
 # 1. Clone repository
@@ -184,7 +170,7 @@ python src/pvc_detection_pipeline.py
 
 ---
 
-## 8. Limitations & Future Work
+## 7. Limitations & Future Work
 
 - **Subject-Specific Calibration Requirement:** The current pipeline requires the first 50 heartbeats of each new patient to be confirmed as normal sinus rhythm (class `'N'`). In a clinical deployment, a physician or a pre-screening algorithm would need to verify these initial beats before the personalized template and classifier can be constructed. Developing a semi-supervised or transfer-learning approach to reduce this initial labeling burden is a key direction for future research.
 - **Inference Time Reporting:** The reported ~20 μs execution time covers only the decision tree traversal (`if/else` branches). The full embedded pipeline — including real-time feature extraction (Hjorth parameters, correlation coefficients, RR-interval computations) — has not yet been benchmarked on the physical ESP32 hardware. End-to-end latency profiling is planned.
