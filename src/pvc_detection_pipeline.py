@@ -144,7 +144,7 @@ def run_scientific_pipeline():
                         calibration_indices.append(i)
             
             if not temp_beats: continue
-            template = np.mean(temp_beats, axis=0)
+            template = np.median(temp_beats, axis=0)  # Median is robust to noise spikes
             last_calib_idx = max(calibration_indices) if calibration_indices else 0
             
             # Extraction
@@ -239,7 +239,7 @@ def find_and_visualize_examples(pid, trained_model, selected_feat_indices):
                 if s >= 0 and e < len(filtered_sig): temp_beats.append(filtered_sig[s:e])
     
     if not temp_beats: return
-    template = np.mean(temp_beats, axis=0)
+    template = np.median(temp_beats, axis=0)  # Median is robust to noise spikes
 
     # Search
     n_example, v_example = None, None

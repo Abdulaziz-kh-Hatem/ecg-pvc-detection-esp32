@@ -1,4 +1,4 @@
-﻿# Subject-Specific Premature Ventricular Contraction Detection Using Dual-Voting Feature Selection and Lightweight Decision Trees
+# Subject-Specific Premature Ventricular Contraction Detection Using Dual-Voting Feature Selection and Lightweight Decision Trees
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/)
@@ -127,7 +127,7 @@ int classify_beat(Features f) {
 
 ### Computational Footprint on ESP32 (Tensilica Xtensa 32-bit LX6 @ 240 MHz):
 - **RAM Footprint:** < 3 KB (dominated by the 108-sample circular buffer and 12 calculated features).
-- **Execution Time:** ~20 microseconds per heartbeat (running at 1 to 2 Hz, the MCU sleeps 99.9% of the time, enabling multi-day battery operation on a single 18650 cell).
+- **Execution Time:** ~20 microseconds per heartbeat for **decision tree inference** (the `if/else` traversal). Note: this does not include the upstream feature extraction computations (variance, Hjorth parameters, correlation coefficient), which would add additional processing time on the ESP32. Full end-to-end latency benchmarking on the physical ESP32 is planned as future work. At a heart rate of 1–2 Hz, the MCU sleeps >99% of the time, enabling multi-day battery operation on a single 18650 cell.
 - **Zero External Dependencies:** Runs natively in bare-metal C++ without requiring Python, TensorFlow Lite, or an internet connection.
 
 ---
@@ -167,3 +167,11 @@ pip install -r requirements.txt
 # 3. Run the end-to-end patient evaluation pipeline
 python src/pvc_detection_pipeline.py
 ```
+
+---
+
+## 7. Limitations & Future Work
+
+- **Subject-Specific Calibration Requirement:** The current pipeline requires the first 50 heartbeats of each new patient to be confirmed as normal sinus rhythm (class `'N'`). In a clinical deployment, a physician or a pre-screening algorithm would need to verify these initial beats before the personalized template and classifier can be constructed. Developing a semi-supervised or transfer-learning approach to reduce this initial labeling burden is a key direction for future research.
+- **Inference Time Reporting:** The reported ~20 μs execution time covers only the decision tree traversal (`if/else` branches). The full embedded pipeline — including real-time feature extraction (Hjorth parameters, correlation coefficients, RR-interval computations) — has not yet been benchmarked on the physical ESP32 hardware. End-to-end latency profiling is planned.
+- **Validation Scope:** All results were obtained using the MIT-BIH Arrhythmia Database (PhysioNet). Prospective clinical validation on live patient data from low-resource settings has not yet been conducted.
