@@ -28,7 +28,11 @@ import subprocess
 
 # Auto-delegate to local virtualenv if present and not already active
 _repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-_venv_python = os.path.join(_repo_root, ".venv", "Scripts", "python.exe")
+_venv_python = (
+    os.path.join(_repo_root, ".venv", "Scripts", "python.exe")
+    if sys.platform == "win32"
+    else os.path.join(_repo_root, ".venv", "bin", "python")
+)
 if os.path.exists(_venv_python) and os.path.abspath(sys.executable).lower() != os.path.abspath(_venv_python).lower():
     _res = subprocess.run([_venv_python, os.path.abspath(__file__)] + sys.argv[1:])
     sys.exit(_res.returncode)

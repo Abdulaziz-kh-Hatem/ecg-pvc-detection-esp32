@@ -4,4 +4,4 @@ Verified canonical implementation of the subject-specific intra-patient ECG clas
 """
 
 __version__ = "1.0.0"
-__author__ = "Research Team"
+__author__ = "Abdulaziz Hatem"

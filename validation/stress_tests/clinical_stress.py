@@ -1,9 +1,9 @@
 """
 Clinical Stress Testing Suite for PVC Detection.
-Empirically investigates two critical peer-review attack points:
-1. Arrhythmia Specificity Attack: Evaluating false positive rates on excluded
+Empirically investigates two critical evaluation aspects:
+1. Arrhythmia Specificity: Evaluating false positive rates on non-target
    arrhythmia classes (Premature Atrial Contractions / PACs, Fusion beats).
-2. R-Peak Jitter Robustness Attack: Evaluating performance degradation under
+2. R-Peak Jitter Robustness: Evaluating performance degradation under
    simulated automated QRS detector temporal jitter (±10 ms, ±20 ms).
 
 Reuses canonical signal processing, segmentation, features, and model modules.
@@ -218,8 +218,8 @@ def run_rpeak_jitter_stress_test(
     return jitter_results
 
 
-def plot_stress_test_figure(jitter_results: Dict[Any, Any], arrhythmia_results: Dict[str, Any], out_dir: str = "figures/validated") -> None:
-    """Generate publication figure documenting stress testing outcomes."""
+def plot_stress_test_figure(jitter_results: Dict[Any, Any], arrhythmia_results: Dict[str, Any], out_dir: str = "figures") -> None:
+    """Generate visualization figure documenting stress testing outcomes."""
     os.makedirs(out_dir, exist_ok=True)
 
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
@@ -258,7 +258,7 @@ def plot_stress_test_figure(jitter_results: Dict[Any, Any], arrhythmia_results: 
         ax2.set_xlim(0, 105)
 
     plt.tight_layout()
-    out_file = os.path.join(out_dir, "Figure_11_Clinical_Stress_Tests.png")
+    out_file = os.path.join(out_dir, "clinical_stress_tests.png")
     plt.savefig(out_file, dpi=300, bbox_inches="tight")
     plt.close()
     print(f"\nSaved stress test figure to {out_file}")

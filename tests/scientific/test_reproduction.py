@@ -18,7 +18,7 @@ from src.model.classifier import create_pvc_classifier, train_pvc_classifier, pr
 from src.pipeline.train import run_canonical_pipeline
 
 # Ground truth benchmark evaluation metrics across cohort
-TABLE_3_GROUND_TRUTH = {
+COHORT_BENCHMARK_GROUND_TRUTH = {
     "105": {"acc": 100.00, "sens": 100.00, "spec": 100.00, "depth": 5},
     "106": {"acc": 100.00, "sens": 100.00, "spec": 100.00, "depth": 2},
     "119": {"acc": 100.00, "sens": 100.00, "spec": 100.00, "depth": 2},
@@ -38,7 +38,7 @@ TABLE_3_GROUND_TRUTH = {
 
 
 def test_reproduce_patient_208_results():
-    """Verify bit-exact reproduction of Patient 208 Table 3 & Figure 8 metrics."""
+    """Verify bit-exact reproduction of Patient 208 benchmark metrics and confusion matrix."""
     signal, annotation, fs = load_ecg_record("208", data_dir="data/raw/", channel=0)
     filtered = butter_bandpass_filter(signal, 0.5, 40.0, fs, order=3, mode="causal")
 
@@ -87,8 +87,8 @@ def test_reproduce_patient_208_results():
     assert depth == 2, f"Expected tree depth 2, got {depth}"
 
 
-def test_all_15_patients_table_3_numerical_reproduction():
-    """Verify that all 15 patient records match Table 3 ground-truth metrics."""
+def test_all_15_patients_benchmark_numerical_reproduction():
+    """Verify that all 15 patient records match cohort benchmark ground-truth metrics."""
     csv_path = "results/patient_results.csv"
     if os.path.exists(csv_path):
         df = pd.read_csv(csv_path)
@@ -96,18 +96,18 @@ def test_all_15_patients_table_3_numerical_reproduction():
         df = None
 
     # If file is missing or contains incomplete cohort, run pipeline
-    if df is None or len(df) != len(TABLE_3_GROUND_TRUTH):
+    if df is None or len(df) != len(COHORT_BENCHMARK_GROUND_TRUTH):
         df, _, _, _ = run_canonical_pipeline()
 
     assert len(df) == 15, f"Expected 15 patient results, found {len(df)}"
     pids_found = set(str(int(float(r))) for r in df["Patient"])
-    assert pids_found == set(TABLE_3_GROUND_TRUTH.keys()), (
-        f"Missing patients in results: {set(TABLE_3_GROUND_TRUTH.keys()) - pids_found}"
+    assert pids_found == set(COHORT_BENCHMARK_GROUND_TRUTH.keys()), (
+        f"Missing patients in results: {set(COHORT_BENCHMARK_GROUND_TRUTH.keys()) - pids_found}"
     )
 
     for _, row in df.iterrows():
         pid = str(int(float(row["Patient"])))
-        gt = TABLE_3_GROUND_TRUTH[pid]
+        gt = COHORT_BENCHMARK_GROUND_TRUTH[pid]
 
         rep_acc = round(float(row["Accuracy"]), 2)
         rep_sens = round(float(row["Sensitivity"]), 2)

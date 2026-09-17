@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
 Clinical Stress Testing Suite for PVC Detection.
-Empirically investigates the two critical peer-review attack points:
-1. Arrhythmia Specificity Attack: Evaluating false positive rates on excluded
+Empirically investigates two critical evaluation aspects:
+1. Arrhythmia Specificity: Evaluating false positive rates on non-target
    arrhythmia classes (Premature Atrial Contractions / PACs, Fusion beats).
-2. R-Peak Jitter Robustness Attack: Evaluating performance degradation under
+2. R-Peak Jitter Robustness: Evaluating performance degradation under
    simulated automated QRS detector temporal jitter (±10 ms, ±20 ms).
 
 Usage:
@@ -17,7 +17,11 @@ import json
 import subprocess
 
 _repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-_venv_python = os.path.join(_repo_root, ".venv", "Scripts", "python.exe")
+_venv_python = (
+    os.path.join(_repo_root, ".venv", "Scripts", "python.exe")
+    if sys.platform == "win32"
+    else os.path.join(_repo_root, ".venv", "bin", "python")
+)
 if os.path.exists(_venv_python) and os.path.abspath(sys.executable).lower() != os.path.abspath(_venv_python).lower():
     _res = subprocess.run([_venv_python, os.path.abspath(__file__)] + sys.argv[1:])
     sys.exit(_res.returncode)
@@ -51,7 +55,7 @@ def main() -> None:
         json.dump(stress_test_data, f, indent=2)
     print(f"\nSaved stress test metrics to {out_json}")
 
-    plot_stress_test_figure(jitter_res, arrhy_res, out_dir=os.path.join(_repo_root, "figures", "validated"))
+    plot_stress_test_figure(jitter_res, arrhy_res, out_dir=os.path.join(_repo_root, "figures"))
     print("=" * 80)
     print("Clinical stress testing completed successfully.")
 

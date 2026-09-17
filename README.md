@@ -187,7 +187,7 @@ Every biomedical engineering project must clearly understand its boundaries:
    * **Fusion Beats (`F`):** 25% to 78% of fusion beats were classified as PVCs.
    * **Aberrant Atrial Beats (`a`):** Up to 31.8% were classified as PVCs.
    * *Conclusion:* An abnormal beat flagged by this model is not guaranteed to be a PVC.
-3. **Dependence on Subject Calibration:** The pipeline relies on a patient-specific template constructed from the first 50 normal beats. When tested across unseen patients without calibration (Leave-One-Patient-Out cross-validation), mean sensitivity drops from 98.19% down to **64.9%**.
+3. **Dependence on Subject Calibration:** The pipeline relies on a patient-specific template constructed from the first 50 normal beats. When tested across unseen patients without calibration (Leave-One-Patient-Out cross-validation), mean sensitivity drops from 98.19% down to **83.39%** (with individual challenging patients dropping to 31.58% on record 105 and 46.46% on record 201).
 4. **Academic Project Disclaimer:** This repository represents an **undergraduate academic project**. It is not clinically validated, not certified for medical diagnostic use, and must not be used as a medical device or diagnostic system.
 
 ![Generalization Comparison](figures/generalization_comparison.png)
@@ -241,6 +241,10 @@ ecg-pvc-detection-esp32/
 │   ├── integration/                   # End-to-end pipeline tests
 │   ├── scientific/                    # Data integrity and leakage invariants
 │   └── unit/                          # Unit tests for each module
+├── validation/                        # Generalization and robustness validation
+│   ├── cross_validation.py            # LOPO, grouped k-fold, bootstrap CI
+│   ├── lopo/                          # Leave-One-Patient-Out evaluation pipeline
+│   └── stress_tests/                  # Arrhythmia specificity and jitter stress tests
 ├── .gitignore
 ├── LICENSE                            # MIT License
 ├── pyproject.toml
@@ -290,6 +294,20 @@ To reproduce and save all figures into `figures/`:
 ```bash
 python scripts/generate_all_figures.py
 ```
+
+### Step 5: Run Generalization Audit (LOPO)
+To evaluate model performance on unseen patients (Leave-One-Patient-Out):
+```bash
+python scripts/run_inter_patient_audit.py
+```
+Outputs are written to `results/inter_patient_results.csv` and `models/lopo_global_tree.joblib`.
+
+### Step 6: Run Arrhythmia and Jitter Stress Tests
+To evaluate specificity against non-PVC arrhythmias and timing jitter:
+```bash
+python scripts/run_clinical_stress_tests.py
+```
+Outputs are written to `results/clinical_stress_test_results.json` and `figures/clinical_stress_tests.png`.
 
 ---
 
