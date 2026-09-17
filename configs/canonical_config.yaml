@@ -1,0 +1,109 @@
+# PVC Detection Pipeline Configuration
+# Undergraduate Research Project: Lightweight ECG-Based PVC Detection Using Machine Learning
+# Intra-patient chronological 70/30 evaluation across 15 MIT-BIH records
+
+dataset:
+  raw_data_dir: "data/raw/"
+  patients:
+    - "105"
+    - "106"
+    - "119"
+    - "200"
+    - "201"
+    - "203"
+    - "205"
+    - "208"
+    - "210"
+    - "213"
+    - "215"
+    - "219"
+    - "221"
+    - "228"
+    - "233"
+  channel: 0  # Modified Limb Lead II (MLII)
+  fs: 360
+  normal_symbol: "N"
+  pvc_symbol: "V"
+
+preprocessing:
+  filter_order: 3
+  lowcut_hz: 0.5
+  highcut_hz: 40.0
+  filter_mode: "causal"  # Uses scipy.signal.lfilter to match microcontroller causality
+
+segmentation:
+  pre_r_samples: 36    # 100 ms at 360 Hz
+  post_r_samples: 72   # 200 ms at 360 Hz
+  total_samples: 108   # 300 ms window
+
+calibration:
+  calibration_beats: 50
+  method: "median"     # Sample-wise median of first 50 normal beats
+
+features:
+  all_32_features:
+    - "Pre_RR"
+    - "Post_RR"
+    - "RR_Ratio"
+    - "Local_RR_Avg"
+    - "RR_Diff"
+    - "Heart_Rate"
+    - "Mean"
+    - "Std_Dev"
+    - "Max_Val"
+    - "Min_Val"
+    - "Peak_to_Peak"
+    - "RMS"
+    - "Area"
+    - "Energy"
+    - "Line_Length"
+    - "Steepness"
+    - "Pulse_Index"
+    - "Crest_Factor"
+    - "Form_Factor"
+    - "Skewness"
+    - "Kurtosis"
+    - "Hjorth_Activity"
+    - "Hjorth_Mobility"
+    - "Hjorth_Complexity"
+    - "SAD"
+    - "Corr_Coeff"
+    - "Max_Dev"
+    - "Energy_Ratio"
+    - "Temp_Energy_Ratio"
+    - "Discordance"
+    - "Res_Energy"
+    - "ZCR"
+
+feature_selection:
+  method: "dual_voting"
+  n_selected: 12
+  random_forest:
+    n_estimators: 100
+    max_depth: 10
+    random_state: 42
+    n_jobs: -1
+  xgboost:
+    n_estimators: 100
+    max_depth: 6
+    learning_rate: 0.1
+    random_state: 42
+    n_jobs: -1
+    eval_metric: "logloss"
+
+validation:
+  protocol: "intra_patient_chronological"
+  train_ratio: 0.70
+
+classifier:
+  type: "decision_tree"
+  criterion: "entropy"
+  max_depth: 8
+  class_weight: "balanced"
+  random_state: 42
+
+paths:
+  results_dir: "results/"
+  figures_dir: "figures/"
+  models_dir: "models/"
+  logs_dir: "logs/"

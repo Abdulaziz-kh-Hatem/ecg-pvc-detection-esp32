@@ -1,0 +1,34 @@
+[build-system]
+requires = ["setuptools>=65.0.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lightweight-ecg-pvc-detection"
+version = "1.0.0"
+description = "Undergraduate Research Project: Lightweight ECG-based premature ventricular contraction detection using machine learning on MIT-BIH records."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [
+    { name = "Abdulaziz Hatem" }
+]
+dependencies = [
+    "numpy>=1.26.0",
+    "scipy>=1.16.0",
+    "pandas>=2.2.0",
+    "scikit-learn>=1.7.0",
+    "matplotlib>=3.9.0",
+    "xgboost>=2.0.0",
+    "wfdb>=4.2.0",
+    "pyyaml>=6.0.0"
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0"
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]

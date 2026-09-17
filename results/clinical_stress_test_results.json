@@ -1,0 +1,111 @@
+{
+  "arrhythmia_specificity_test": {
+    "200": {
+      "A": {
+        "count": 30,
+        "classified_as_pvc": 0,
+        "false_alarm_rate": 0.0
+      },
+      "F": {
+        "count": 2,
+        "classified_as_pvc": 1,
+        "false_alarm_rate": 50.0
+      }
+    },
+    "201": {
+      "A": {
+        "count": 30,
+        "classified_as_pvc": 0,
+        "false_alarm_rate": 0.0
+      },
+      "a": {
+        "count": 97,
+        "classified_as_pvc": 29,
+        "false_alarm_rate": 29.896907216494846
+      },
+      "F": {
+        "count": 2,
+        "classified_as_pvc": 2,
+        "false_alarm_rate": 100.0
+      },
+      "J": {
+        "count": 1,
+        "classified_as_pvc": 0,
+        "false_alarm_rate": 0.0
+      }
+    },
+    "208": {
+      "F": {
+        "count": 364,
+        "classified_as_pvc": 92,
+        "false_alarm_rate": 25.274725274725274
+      },
+      "S": {
+        "count": 2,
+        "classified_as_pvc": 0,
+        "false_alarm_rate": 0.0
+      }
+    },
+    "210": {
+      "a": {
+        "count": 22,
+        "classified_as_pvc": 7,
+        "false_alarm_rate": 31.818181818181817
+      },
+      "F": {
+        "count": 9,
+        "classified_as_pvc": 7,
+        "false_alarm_rate": 77.77777777777779
+      }
+    },
+    "213": {
+      "A": {
+        "count": 25,
+        "classified_as_pvc": 1,
+        "false_alarm_rate": 4.0
+      },
+      "a": {
+        "count": 3,
+        "classified_as_pvc": 0,
+        "false_alarm_rate": 0.0
+      },
+      "F": {
+        "count": 362,
+        "classified_as_pvc": 128,
+        "false_alarm_rate": 35.35911602209944
+      }
+    }
+  },
+  "rpeak_jitter_robustness_test": {
+    "0": {
+      "mean_accuracy": 99.6005326231691,
+      "mean_sensitivity": 98.83268482490271,
+      "mean_specificity": 100.0,
+      "sensitivity_drop": 0.0
+    },
+    "5": {
+      "mean_accuracy": 99.6005326231691,
+      "mean_sensitivity": 98.83268482490271,
+      "mean_specificity": 100.0,
+      "sensitivity_drop": 0.0
+    },
+    "10": {
+      "mean_accuracy": 99.6005326231691,
+      "mean_sensitivity": 98.83268482490271,
+      "mean_specificity": 100.0,
+      "sensitivity_drop": 0.0
+    },
+    "15": {
+      "mean_accuracy": 99.6005326231691,
+      "mean_sensitivity": 98.83268482490271,
+      "mean_specificity": 100.0,
+      "sensitivity_drop": 0.0
+    },
+    "20": {
+      "mean_accuracy": 99.6005326231691,
+      "mean_sensitivity": 98.83268482490271,
+      "mean_specificity": 100.0,
+      "sensitivity_drop": 0.0
+    }
+  }
+}

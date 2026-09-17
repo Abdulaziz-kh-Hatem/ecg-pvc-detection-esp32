@@ -1,246 +1,310 @@
-# Subject-Specific Premature Ventricular Contraction Detection Using Dual-Voting Feature Selection and Lightweight Decision Trees
+# Lightweight ECG-Based PVC Detection Using Machine Learning
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Python 3.11](https://img.shields.io/badge/Python-3.11-blue.svg)](https://www.python.org/)
-[![Paper: iJOE 2026](https://img.shields.io/badge/Journal-iJOE%202026-purple.svg)]()
-[![Target Architecture: Microcontroller (Theoretical)](https://img.shields.io/badge/Target%20Architecture-Microcontroller%20(Theoretical)-lightgrey.svg)]()
-[![Dataset: PhysioNet MIT-BIH](https://img.shields.io/badge/Dataset-PhysioNet%20MIT--BIH-orange.svg)](https://physionet.org/content/mitdb/1.0.0/)
+> **Undergraduate Biomedical Engineering Academic Project**
 
-**Author:** Abdulaziz K. A. Hatem, B.Eng.  
-**Affiliation:** Department of Biomedical Engineering, University of Science and Technology (UST), Aden, Yemen  
-**Reference Paper:** *"Subject-Specific Premature Ventricular Contraction Detection Using Dual-Voting Feature Selection and Lightweight Decision Trees"* (iJOE, 2026)
+[![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Tests Passing](https://img.shields.io/badge/Tests-35%2F35%20Passing-brightgreen.svg)](run_tests.py)
 
 ---
 
-## 1. Project Overview & Scope
+## 1. Overview
 
-This repository provides the official Python implementation and algorithmic pipeline for the research paper submitted to *iJOE* (2026). The project develops an offline, subject-specific machine learning framework for detecting **Premature Ventricular Contractions (PVCs)** from single-lead electrocardiogram (ECG) signals, specifically designed to address cardiac arrhythmia screening challenges in low-resource and infrastructure-limited healthcare settings.
+An electrocardiogram (ECG) records the electrical activity of the heart over time. A Premature Ventricular Contraction (PVC) is an abnormal heartbeat that originates in the ventricles instead of the sinoatrial node, disrupting the normal heart rhythm. Frequent PVCs can be a marker of underlying heart conditions.
 
-> **Important Scope Note Regarding Hardware:**  
-> All signal processing, feature extraction, dual-voting feature selection, model training, and performance evaluations in this study were conducted **offline in Python** using retrospective data from the MIT-BIH Arrhythmia Database.  
-> Microcontroller deployment (such as on the ESP32) was analyzed as a **theoretical feasibility and complexity study** (evaluating memory bounds of ~3 KB and microsecond execution latency). Physical on-hardware deployment and live patient acquisition were **not** performed in this study and are designated as future work in the paper's three-phase development roadmap. An automated C++ transpilation script (`src/export_to_cpp.py`) is provided as a proof-of-concept for generating microcontroller-ready decision logic.
+In many resource-limited clinic settings, manual review of long ECG recordings is time-consuming. This project implements a simple, lightweight machine-learning pipeline to detect PVC beats from single-lead ECG signals.
 
----
-
-## 2. Software Tools & Python Libraries
-
-The entire experimental framework was developed using **Python 3.11**. The following standard scientific and machine learning libraries are utilized:
-
-| Library / Tool | Version | Role in Pipeline |
-| :--- | :--- | :--- |
-| **`wfdb`** | `4.3.0` | Native reading of PhysioNet MIT-BIH Arrhythmia Database signals (`.dat`), headers (`.hea`), and cardiologist-verified beat annotations (`.atr`). |
-| **`scipy.signal`** | `1.17.0` | Digital filtering: 3rd-order causal Butterworth bandpass filter (0.5–40.0 Hz) using `butter` and `lfilter` to eliminate baseline wander and high-frequency noise without look-ahead distortion. |
-| **`scipy.stats`** | `1.17.0` | Higher-order statistical feature calculation (sample skewness and kurtosis for waveform asymmetry and peakedness). |
-| **`numpy`** | `2.4.1` | Vectorized mathematical operations, signal difference vectors, energy ratios, template dot products, and sample median calculations. |
-| **`pandas`** | `2.3.3` | Dataset structuring, chronological 70/30 train/test index management, and per-patient performance metric logging. |
-| **`scikit-learn`** | `1.8.0` | **Feature Selection:** `RandomForestClassifier` (100 estimators, Gini impurity ranking).<br>**Classification:** `DecisionTreeClassifier` (CART algorithm, entropy criterion, `max_depth=8`, `class_weight='balanced'`).<br>**Metrics:** `accuracy_score`, `confusion_matrix`, `roc_auc_score`. |
-| **`xgboost`** | `3.1.3` | `XGBClassifier` (100 estimators, max_depth=6, learning_rate=0.1) for Information Gain importance ranking in the consensus Dual-Voting mechanism. |
-| **`matplotlib` & `seaborn`** | `3.10.8` / `0.13.2` | Generation of scientific figures: raw vs filtered ECG plots, subject-specific templates, feature importance rankings, confusion matrices, and cohort distributions. |
+![Normal vs PVC Beat](figures/normal_vs_pvc.png)
 
 ---
 
-## 3. System Architecture & Methodology
+## 2. Project Goal
 
-The proposed pipeline operates in four sequential stages:
+The goal of this project is to classify individual ECG heartbeats as either **Normal (`N`)** or **Premature Ventricular Contraction (`V`)** using simple, hand-crafted ECG features and a lightweight Decision Tree classifier.
+
+---
+
+## 3. Dataset
+
+This project uses the standard **[MIT-BIH Arrhythmia Database](https://physionet.org/content/mitdb/1.0.0/)** hosted on PhysioNet.
+
+* **Sampling Frequency:** 360 Hz
+* **Lead:** Channel 0 (Modified Limb Lead II / MLII)
+* **Cohort:** 15 patient records containing both normal and PVC beats:
+  `105`, `106`, `119`, `200`, `201`, `203`, `205`, `208`, `210`, `213`, `215`, `219`, `221`, `228`, `233`.
+* **Beat Annotations:** We use the physician-verified beat labels provided with the database:
+  * `N`: Normal sinus beat (Class 0)
+  * `V`: Premature ventricular contraction (Class 1)
+* **Annotation Usage:** The reference annotations provide the R-peak sample index for beat segmentation and the true class label for supervised training and testing.
+
+---
+
+## 4. Method
+
+The detection pipeline consists of six sequential steps:
 
 ```text
-[ Raw ECG Record (MIT-BIH, 360 Hz) ]
-                 |
-                 v
-[ Stage 1: Causal Filtering & Segmentation ]
-  • 3rd-order Butterworth bandpass (0.5 - 40 Hz) via SciPy
-  • Asymmetric 300 ms beat-centered window (100 ms pre-R, 200 ms post-R = 108 samples)
-                 |
-                 v
-[ Stage 2: Subject-Specific Calibration ]
-  • First 50 consecutive normal sinus beats ('N')
-  • Sample-by-sample median template (outlier-resistant)
-  • Calibration beats strictly isolated from training/testing sets
-                 |
-                 v
-[ Stage 3: Feature Engineering & Dual-Voting Selection ]
-  • 32 candidate features extracted (temporal, morphological, statistical, template)
-  • Dual-Voting consensus: Random Forest (Gini) + XGBoost (Gain) on 70% train split
-  • Dimensionality reduced by 62.5% -> Top 12 personalized features selected
-                 |
-                 v
-[ Stage 4: Lightweight Decision Tree Classification ]
-  • CART Decision Tree (Entropy, max_depth <= 8, class_weight='balanced')
-  • Evaluated on chronological 30% test split (near real-time look-ahead buffer)
-                 |
-                 v
-[ Automated Transpilation to Standalone C++ Logic ]
-  • Exported nested if/else logic for future microcontroller firmware
+Raw ECG Signal
+      ↓
+Preprocessing (0.5 – 40 Hz Butterworth Bandpass Filter)
+      ↓
+Beat Extraction (300 ms window: 100 ms pre-R, 200 ms post-R)
+      ↓
+Subject Calibration (Median Normal Beat Template from first 50 normal beats)
+      ↓
+Feature Extraction (32 timing, morphological, and template features)
+      ↓
+Dual-Voting Feature Selection (Top 12 consensus features via RF and XGBoost)
+      ↓
+Classification (Balanced Decision Tree)
+      ↓
+Output: Normal (N) vs. PVC (V)
 ```
 
-### 3.1 Signal Preprocessing & Segmentation
-* **Filtering:** Raw single-channel ECG is filtered using a 3rd-order causal Butterworth bandpass filter (0.5 - 40.0 Hz). The 0.5 Hz lower cutoff removes respiration-induced baseline wander; the 40.0 Hz upper cutoff attenuates powerline interference and electromyographic (EMG) muscle artifact.
-* **Segmentation:** Each beat is segmented using annotated R-peaks into an asymmetric 300 ms window (108 samples at 360 Hz): 100 ms before the R-peak and 200 ms after. This captures the complete QRS complex, ST segment, and T wave.
+1. **Preprocessing:** The raw ECG signal is filtered using a 3rd-order Butterworth bandpass filter (0.5 Hz to 40.0 Hz) to remove baseline wander and high-frequency muscle noise.
+2. **Beat Extraction:** For each annotated R-peak, a 108-sample window (300 ms total: 36 samples before the peak, 72 samples after the peak) is extracted.
+3. **Calibration:** For each patient, a median template waveform is constructed from the first 50 normal beats to establish that patient's baseline morphology.
+4. **Feature Extraction:** 32 descriptors are calculated for every extracted beat.
+5. **Feature Selection:** A dual-voting consensus mechanism (combining Random Forest Gini importance and XGBoost gain) selects the top 12 most informative features on the training set.
+6. **Classification:** A balanced Decision Tree classifies the beat as Normal (`N`) or PVC (`V`).
 
-### 3.2 Subject-Specific Calibration
-* For each patient, a baseline reference template is formed from the **first 50 consecutive normal beats** (AAMI class 'N').
-* A **sample-by-sample median** is computed rather than an arithmetic mean to resist ectopic outliers.
-* These initial 50 beats are permanently excluded from both training and test sets to prevent temporal data leakage.
-
-### 3.3 Feature Extraction (32 Candidate Descriptors)
-The pipeline computes 32 candidate mathematical descriptors across four functional categories:
-
-| Category | Count | Features | Description |
-| :--- | :---: | :--- | :--- |
-| **Temporal** | 6 | `Pre_RR`, `Post_RR`, `RR_Ratio`, `Local_RR_Avg`, `RR_Diff`, `Heart_Rate` | Inter-beat timing intervals, compensatory pauses, and local rhythm dynamics. |
-| **Morphological** | 13 | `Mean`, `Std_Dev`, `Max_Val`, `Min_Val`, `Peak_to_Peak`, `RMS`, `Area`, `Energy`, `Line_Length`, `Steepness`, `Pulse_Index`, `Crest_Factor`, `Form_Factor` | Waveform amplitude, QRS width, area, signal complexity, and derivative ratios. |
-| **Statistical** | 6 | `Skewness`, `Kurtosis`, `Hjorth_Activity`, `Hjorth_Mobility`, `Hjorth_Complexity`, `ZCR` | Higher-order statistical moments, Hjorth spectral parameters, and zero-crossing rate. |
-| **Template-Matching** | 7 | `SAD`, `Corr_Coeff`, `Max_Dev`, `Energy_Ratio`, `Temp_Energy_Ratio`, `Discordance`, `Res_Energy` | Deviation from patient's calibrated normal template, Pearson correlation, and residual energy. |
-
-### 3.4 Dual-Voting Feature Selection
-To avoid overfitting and select robust features, a consensus dual-voting scheme is executed strictly on the training partition (70%):
-1. **Random Forest (100 trees):** Evaluates feature importance via mean decrease in Gini impurity.
-2. **XGBoost (100 estimators):** Evaluates feature importance via average information gain across splits.
-3. **Consensus Aggregation:** Both importance vectors are normalized to [0, 1] and averaged element-wise:
-   $$\text{Score}_i = \frac{1}{2} \left( \frac{\text{RF}_i}{\max(\text{RF})} + \frac{\text{XGB}_i}{\max(\text{XGB})} \right)$$
-4. The **top 12 features** with the highest aggregated scores are selected per patient, reducing feature space by **62.5%**.
-
-### 3.5 Classification Model
-* **Algorithm:** Decision Tree using CART with **Entropy** criterion and balanced class weights to address severe class imbalance (PVC prevalence: 1.6% to 38.5%).
-* **Depth Constraint:** Maximum tree depth is constrained to $\le 8$ levels to guarantee bounded computational complexity.
+![ECG Preprocessing](figures/ecg_preprocessing.png)
 
 ---
 
-## 4. Experimental Results
+## 5. Features
 
-The framework was evaluated on **15 selected patient records** from the MIT-BIH Arrhythmia Database, totaling 36,701 analyzed heartbeats under a strict **70/30 chronological train-test split**.
+For each segmented beat, the pipeline extracts **32 hand-crafted features** across four categories:
 
-### 4.1 Cohort Performance Summary (Table 3 from Paper)
+### A. Timing / RR-Interval Features (6)
+* `Pre_RR`: Time interval from previous R-peak to current R-peak. (PVCs occur prematurely, so `Pre_RR` is shorter than normal).
+* `Post_RR`: Time interval from current R-peak to next R-peak. (PVCs are typically followed by a compensatory pause, so `Post_RR` is longer).
+* `RR_Ratio`: Ratio of `Pre_RR` to `Post_RR`.
+* `Local_RR_Avg`: Running average of the previous 10 RR intervals.
+* `RR_Diff`: Difference between current `Pre_RR` and `Local_RR_Avg`.
+* `Heart_Rate`: Instantaneous heart rate derived from `Pre_RR`.
 
-| Patient Record | Training Beats (70%) | Testing Beats (30%) | Accuracy (%) | Sensitivity (%) | Specificity (%) | Decision Tree Depth |
-| :---: | :---: | :---: | :---: | :---: | :---: | :---: |
-| **105** | 1,754 | 752 | 100.00% | 100.00% | 100.00% | 5 |
-| **106** | 1,380 | 592 | 100.00% | 100.00% | 100.00% | 2 |
-| **119** | 1,338 | 574 | 100.00% | 100.00% | 100.00% | 2 |
-| **200** | 1,737 | 745 | 98.80% | 97.04% | 99.79% | 6 |
-| **201** | 1,242 | 533 | 100.00% | 100.00% | 100.00% | 1 |
-| **203** | 2,036 | 874 | 98.52% | 93.33% | 99.22% | 8 |
-| **205** | 1,808 | 776 | 100.00% | 100.00% | 100.00% | 1 |
-| **208** | 1,749 | 751 | 99.60% | 98.83% | 100.00% | 2 |
-| **210** | 1,788 | 767 | 100.00% | 100.00% | 100.00% | 6 |
-| **213** | 1,960 | 841 | 99.76% | 96.88% | 100.00% | 3 |
-| **215** | 2,305 | 989 | 99.80% | 96.15% | 100.00% | 2 |
-| **219** | 1,461 | 627 | 99.84% | 95.24% | 100.00% | 3 |
-| **221** | 1,653 | 709 | 100.00% | 100.00% | 100.00% | 1 |
-| **228** | 1,385 | 594 | 99.33% | 96.58% | 100.00% | 3 |
-| **233** | 2,086 | 895 | 99.67% | 98.86% | 100.00% | 4 |
-| **Mean ± SD** | — | — | **99.69% ± 0.47%** | **98.19% ± 2.17%** | **99.93% ± 0.20%** | **3.3 ± 2.0** |
+### B. Morphological & Waveform Features (16)
+* `Mean`, `Std_Dev`, `Max_Val`, `Min_Val`: Basic statistical amplitude distributions of the 108-sample window.
+* `Peak_to_Peak`: Voltage difference between highest and lowest points in the beat window.
+* `RMS`: Root-mean-square amplitude of the beat.
+* `Area`: Sum of absolute signal amplitudes (indicates broadened QRS complexes).
+* `Energy`: Sum of squared signal amplitudes.
+* `Line_Length`: Total waveform path length (sum of sample-to-sample absolute differences).
+* `Steepness`: Maximum absolute first-order derivative (reflects R-wave slope).
+* `Pulse_Index`, `Crest_Factor`, `Form_Factor`: Waveform shape factors comparing peak and average amplitudes.
+* `Skewness`, `Kurtosis`: Third and fourth statistical moments measuring waveform asymmetry and sharpness.
+* `ZCR`: Zero-crossing rate of the mean-centered beat.
 
-### 4.2 Key Performance Insights
-* **High Specificity (99.93%):** 13 out of 15 patients achieved a perfect 100% specificity (zero false positive alarms), critical for preventing alarm fatigue in long-term cardiac monitoring.
-* **Robust Sensitivity (98.19%):** 14 out of 15 patients exceeded the 95% clinical sensitivity benchmark. Patient 203 recorded 93.33% due to complex multiform/polymorphic PVCs that deviated from a single template.
-* **Compact Model Depth:** Average tree depth across the cohort was only **3.3 levels**. Patients with distinct compensatory pauses (e.g., Records 201, 205, 221) achieved 100% classification with single-split (depth-1) decision stumps.
+### C. Template Comparison Features (7)
+* `SAD`: Sum of absolute differences between the current beat and the patient's normal median template.
+* `Corr_Coeff`: Pearson correlation coefficient between the current beat and the median template (normal beats correlate highly; PVCs correlate poorly).
+* `Max_Dev`: Maximum point-by-point deviation from the template.
+* `Energy_Ratio`: Ratio of current beat energy to template energy.
+* `Temp_Energy_Ratio`: Energy ratio of the subtracted residual waveform.
+* `Discordance`: Polarity alignment between beat deflection and template deflection.
+* `Res_Energy`: Residual energy remaining after subtracting the template.
 
----
+### D. Signal Complexity Features (3)
+* `Hjorth_Activity`: Signal variance (power).
+* `Hjorth_Mobility`: Estimate of the mean frequency.
+* `Hjorth_Complexity`: Measure of bandwidth change compared to a pure sine wave.
 
-## 5. Theoretical Microcontroller Compatibility (ESP32 Analysis)
-
-While the empirical evaluation in this study was conducted offline in Python, the mathematical compactness of the resulting decision trees enables a rigorous theoretical analysis of microcontroller compatibility:
-
-* **RAM Overhead:** Storing a personalized decision tree of depth 1–8 requires **< 3 KB of memory**, easily fitting into the internal SRAM of standard microcontrollers (e.g., 520 KB on the ESP32).
-* **Execution Latency:** On a 240 MHz dual-core Xtensa LX6 microcontroller, evaluating a depth-1 to depth-8 decision tree requires **< 1 µs** (with peak branch traversal estimated at **~20 µs**), leaving substantial processor headroom for system sleep and telemetry.
-* **Decision Timing Buffer:** Temporal features (`Post_RR`) require registering the subsequent R-peak. This introduces a physiological buffer delay of approximately 500 - 1200 ms (typically ~600 ms at resting heart rate), which represents a natural cardiac event buffer rather than computational latency.
-* **Estimated Hardware Bill of Materials (BOM):** A theoretical standalone telemetry node (ESP32 MCU + AD8232 AFE sensor + LiPo battery) is projected at **$8 – $13**, significantly lowering capital costs compared to commercial Holter devices.
-
-### Automated C++ Transpilation
-To facilitate future firmware porting, `src/export_to_cpp.py` automatically converts trained Scikit-learn decision tree nodes into nested C++ `if/else` structures:
-
-```cpp
-// Sample transpiled C++ decision logic (Patient 208)
-inline int classify_pvc_beat(const BeatFeatures& f) {
-    if (f.Post_RR <= 0.655556f) {
-        if (f.Pre_RR <= 0.444444f) {
-            return 1; // Ectopic Premature Beat (PVC)
-        } else {
-            return 0; // Normal Beat
-        }
-    } else {
-        if (f.Corr_Coeff <= 0.825000f) {
-            return 1; // Morphology Deviation (PVC)
-        } else {
-            return 0; // Normal Beat with pause
-        }
-    }
-}
-```
+![Feature Importance](figures/feature_importance.png)
 
 ---
 
-## 6. Limitations & Future Roadmap
+## 6. Machine Learning Model
 
-As detailed in Section 5 of the reference paper, four practical engineering limitations remain to be addressed in future work:
-1. **Unsupervised "Cold Start":** Current calibration relies on gold-standard cardiologist annotations to identify the initial 50 normal beats. Future work will introduce a 30-second physician-assisted or automated signal quality check.
-2. **Polymorphic PVCs:** Multi-shape ectopic beats (observed in Patient 203) require multi-template clustering (e.g., K-means) during initialization.
-3. **Automated R-Peak Detection:** Offline evaluation used reference annotations; embedded deployment will integrate an on-chip real-time Pan-Tompkins or wavelet detector.
+* **Model Type:** Decision Tree Classifier (`sklearn.tree.DecisionTreeClassifier`)
+* **Split Criterion:** Entropy (Information Gain)
+* **Maximum Depth:** 8 (prevents overfitting and keeps decision logic compact)
+* **Class Weighting:** `balanced` (compensates for the natural class imbalance where normal beats outnumber PVCs)
+* **Random State:** 42 (ensures deterministic reproducibility)
 
-### Three-Phase Roadmap:
-* **Phase 1 (Firmware Porting):** Porting feature extraction and decision tree traversal to optimized fixed-point C/C++ firmware.
-* **Phase 2 (Lab Bench Testing):** Stress-testing physical hardware with synthesized ECG signal generators to validate projected battery life (5–7 days).
-* **Phase 3 (Clinical Pilot in Yemen):** Validating store-and-forward telemetry in collaboration with local healthcare centers.
+### Why Decision Tree?
+1. **Simplicity and Interpretability:** Every classification can be traced down a set of simple if-then threshold decisions.
+2. **Computational Efficiency:** Evaluation requires only a few numerical comparisons, with minimal memory and processing footprint.
 
 ---
 
-## 7. Repository Structure
+## 7. Evaluation
+
+### Evaluation Protocol
+We use an **intra-patient chronological split**:
+* The first **70%** of beats in each record are used for training and feature selection.
+* The remaining **30%** of beats are held out for testing.
+* No future beats leak into the training partition.
+
+### Metrics Computed
+* **Accuracy:** Percentage of total beats correctly classified: $\frac{TP + TN}{TP + TN + FP + FN}$
+* **Sensitivity (Recall):** Ability to detect PVC beats: $\frac{TP}{TP + FN}$
+* **Specificity:** Ability to identify normal beats: $\frac{TN}{TN + FP}$
+* **Precision (PPV):** Proportion of predicted PVCs that were true PVCs: $\frac{TP}{TP + FP}$
+* **F1-Score:** Harmonic mean of precision and sensitivity: $\frac{2 \cdot Precision \cdot Sensitivity}{Precision + Sensitivity}$
+
+---
+
+## 8. Results
+
+Below are the actual test-set results produced by the pipeline on all 15 MIT-BIH records (70% train / 30% test):
+
+| Patient Record | Training Beats | Test Beats | Accuracy (%) | Sensitivity (%) | Specificity (%) | Precision (%) | F1-Score (%) | Tree Depth |
+| :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| **105** | 1,759 | 754 | 100.00 | 100.00 | 100.00 | 100.00 | 100.00 | 5 |
+| **106** | 1,383 | 593 | 100.00 | 100.00 | 100.00 | 100.00 | 100.00 | 2 |
+| **119** | 1,341 | 575 | 100.00 | 100.00 | 100.00 | 100.00 | 100.00 | 2 |
+| **200** | 1,741 | 747 | 98.80 | 97.04 | 99.79 | 99.62 | 98.31 | 6 |
+| **201** | 1,240 | 532 | 100.00 | 100.00 | 100.00 | 100.00 | 100.00 | 1 |
+| **203** | 2,042 | 876 | 98.52 | 93.33 | 99.22 | 94.23 | 93.78 | 8 |
+| **205** | 1,813 | 778 | 100.00 | 100.00 | 100.00 | 100.00 | 100.00 | 1 |
+| **208** | 1,750 | 751 | 99.60 | 98.83 | 100.00 | 100.00 | 99.41 | 2 |
+| **210** | 1,792 | 769 | 100.00 | 100.00 | 100.00 | 100.00 | 100.00 | 6 |
+| **213** | 1,966 | 844 | 99.76 | 96.88 | 100.00 | 100.00 | 98.41 | 3 |
+| **215** | 2,313 | 992 | 99.80 | 96.15 | 100.00 | 100.00 | 98.04 | 2 |
+| **219** | 1,465 | 629 | 99.84 | 95.24 | 100.00 | 100.00 | 97.56 | 3 |
+| **221** | 1,656 | 710 | 100.00 | 100.00 | 100.00 | 100.00 | 100.00 | 1 |
+| **228** | 1,391 | 597 | 99.33 | 96.58 | 100.00 | 100.00 | 98.26 | 3 |
+| **233** | 2,091 | 897 | 99.67 | 98.86 | 100.00 | 100.00 | 99.43 | 4 |
+| **Cohort Mean ± Std** | **25,743** | **11,044** | **99.69 ± 0.47** | **98.19 ± 2.17** | **99.93 ± 0.20** | **99.59 ± 1.49** | **98.88 ± 1.66** | **3.3 ± 2.0** |
+
+### Confusion Matrix (Patient 208 Test Set)
+* **True Negatives (`N` predicted as `N`):** 494
+* **False Positives (`N` predicted as `V`):** 0
+* **False Negatives (`V` predicted as `N`):** 3
+* **True Positives (`V` predicted as `V`):** 254
+
+![Confusion Matrix](figures/confusion_matrix.png)
+
+---
+
+## 9. Error Analysis & Limitations
+
+Every biomedical engineering project must clearly understand its boundaries:
+
+1. **Binary Classification Scope:** The model is trained strictly to distinguish Normal beats (`N`) from Premature Ventricular Contractions (`V`). It is not trained to detect or differentiate other cardiac arrhythmias.
+2. **Behavior on Other Arrhythmias:** In stress tests evaluating beats outside `N` and `V`:
+   * **Fusion Beats (`F`):** 25% to 78% of fusion beats were classified as PVCs.
+   * **Aberrant Atrial Beats (`a`):** Up to 31.8% were classified as PVCs.
+   * *Conclusion:* An abnormal beat flagged by this model is not guaranteed to be a PVC.
+3. **Dependence on Subject Calibration:** The pipeline relies on a patient-specific template constructed from the first 50 normal beats. When tested across unseen patients without calibration (Leave-One-Patient-Out cross-validation), mean sensitivity drops from 98.19% down to **64.9%**.
+4. **Academic Project Disclaimer:** This repository represents an **undergraduate academic project**. It is not clinically validated, not certified for medical diagnostic use, and must not be used as a medical device or diagnostic system.
+
+![Generalization Comparison](figures/generalization_comparison.png)
+
+---
+
+## 10. Project Structure
 
 ```text
 ecg-pvc-detection-esp32/
-|-- README.md                      # Comprehensive academic documentation
-|-- LICENSE                        # MIT License
-|-- requirements.txt               # Python package dependencies
-|-- environment.yml                # Conda environment definition
-|-- src/
-|   |-- pvc_detection_pipeline.py  # Complete Python training & evaluation pipeline
-|   |-- export_to_cpp.py           # Automated C++ decision tree transpiler
-|-- results/
-|   |-- patient_results.csv        # Detailed per-patient classification metrics
-|   |-- feature_selection.json     # Selected 12-feature subsets per patient
-|-- docs/
-|   |-- figures/                   # Diagnostic plots, templates, confusion matrices
-|-- firmware/
-|   |-- ESP32_Scientific_Firmware.cpp  # Sample transpiled C++ header (Patient 208)
+├── configs/
+│   └── canonical_config.yaml          # Pipeline configuration (data, features, model)
+├── data/
+│   └── raw/                           # 15 MIT-BIH PhysioNet records (.dat, .hea, .atr)
+│       └── SHA256SUMS.txt             # Official file integrity checksums
+├── figures/                           # Project visualization plots
+│   ├── ecg_preprocessing.png
+│   ├── normal_vs_pvc.png
+│   ├── template_generation.png
+│   ├── lookahead_buffer.png
+│   ├── feature_importance.png
+│   ├── cohort_accuracy.png
+│   ├── cohort_sensitivity.png
+│   ├── confusion_matrix.png
+│   ├── feature_selection_frequency.png
+│   ├── generalization_comparison.png
+│   └── clinical_stress_tests.png
+├── models/                            # Serialized trained models (.joblib)
+│   ├── canonical_patient_208_decision_tree.joblib
+│   └── lopo_global_tree.joblib
+├── results/                           # Experimental metrics and feature outputs
+│   ├── patient_results.csv
+│   ├── cohort_summary_stats.json
+│   ├── feature_selection.json
+│   ├── inter_patient_results.csv
+│   └── clinical_stress_test_results.json
+├── scripts/                           # Runnable entry-point scripts
+│   ├── run_experiment.py              # Main experiment runner (15 patients)
+│   ├── generate_all_figures.py        # Generates all figures in figures/
+│   ├── run_inter_patient_audit.py     # Leave-One-Patient-Out validation
+│   └── run_clinical_stress_tests.py   # Arrhythmia specificity and jitter stress tests
+├── src/                               # Core Python package
+│   ├── beats/                         # Segmentation and template generation
+│   ├── data/                          # PhysioNet loader and dataset assembly
+│   ├── evaluation/                    # Diagnostic metric computations
+│   ├── features/                      # 32 hand-crafted feature extraction & dual-voting
+│   ├── model/                         # Decision Tree model initialization and prediction
+│   ├── pipeline/                      # Main training and evaluation engine
+│   └── signal/                        # Butterworth bandpass filtering
+├── tests/                             # Automated test suite (35 tests)
+│   ├── integration/                   # End-to-end pipeline tests
+│   ├── scientific/                    # Data integrity and leakage invariants
+│   └── unit/                          # Unit tests for each module
+├── .gitignore
+├── LICENSE                            # MIT License
+├── pyproject.toml
+├── requirements.txt
+└── run_tests.py                       # Test discovery and execution runner
 ```
 
 ---
 
-## 8. Installation & Usage
+## 11. How to Run
 
-### 8.1 Setup Python Environment
+### Prerequisites
+* Python 3.10 or higher
+* Recommended: Virtual environment
 
+### Step 1: Clone the Repository & Set Up Environment
 ```bash
 git clone https://github.com/Abdulaziz-kh-Hatem/ecg-pvc-detection-esp32.git
 cd ecg-pvc-detection-esp32
+
+# Create and activate virtual environment
+python -m venv .venv
+# On Windows:
+.venv\Scripts\activate
+# On Linux/macOS:
+source .venv/bin/activate
+
+# Install dependencies
 pip install -r requirements.txt
 ```
 
-### 8.2 Run the Scientific Pipeline
-
+### Step 2: Run the Main Experiment
+To run the full 15-patient pipeline from raw data to saved results:
 ```bash
-python src/pvc_detection_pipeline.py
+python scripts/run_experiment.py
+```
+Outputs are written to `results/patient_results.csv` and `results/feature_selection.json`.
+
+### Step 3: Run the Test Suite
+To discover and run all 35 tests across unit, scientific, and integration modules:
+```bash
+python run_tests.py
 ```
 
-### 8.3 Transpile Decision Tree to C++
-
+### Step 4: Generate Figures
+To reproduce and save all figures into `figures/`:
 ```bash
-python src/export_to_cpp.py
+python scripts/generate_all_figures.py
 ```
 
 ---
 
-## 9. Citation
+## 12. References
 
-If you reference this work or utilize the pipeline, please cite:
+1. **MIT-BIH Arrhythmia Database:**
+   * Moody GB, Mark RG. *The impact of the MIT-BIH Arrhythmia Database.* IEEE Engineering in Medicine and Biology Magazine, 20(3):45-50 (2001).
+   * Goldberger AL, et al. *PhysioBank, PhysioToolkit, and PhysioNet: Components of a New Research Resource for Complex Physiologic Signals.* Circulation, 101(23):e215-e220 (2000).
+2. **Scientific Python Ecosystem:**
+   * Pedregosa F, et al. *Scikit-learn: Machine Learning in Python.* Journal of Machine Learning Research, 12:2825-2830 (2011).
+   * Virtanen P, et al. *SciPy 1.0: Fundamental Algorithms for Scientific Computing in Python.* Nature Methods, 17:261-272 (2020).
+   * Xie C, et al. *WFDB: Waveform Database Software Package for Python.* PhysioNet (2024).
 
-```bibtex
-@article{hatem2026pvc,
-  title={Subject-Specific Premature Ventricular Contraction Detection Using Dual-Voting Feature Selection and Lightweight Decision Trees},
-  author={Hatem, Abdulaziz K. A. and AL-Audi, Nasr Kaid Ali},
-  journal={International Journal of Online and Biomedical Engineering (iJOE)},
-  year={2026},
-  note={Under Review}
-}
-```
+---
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
