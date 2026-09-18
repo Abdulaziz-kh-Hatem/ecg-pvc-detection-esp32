@@ -180,7 +180,7 @@ Below are the actual test-set results produced by the pipeline on all 15 MIT-BIH
 
 ## 9. Error Analysis & Limitations
 
-Every biomedical engineering project must clearly understand its boundaries:
+It is important to understand the limitations of this project:
 
 1. **Binary Classification Scope:** The model is trained strictly to distinguish Normal beats (`N`) from Premature Ventricular Contractions (`V`). It is not trained to detect or differentiate other cardiac arrhythmias.
 2. **Behavior on Other Arrhythmias:** In stress tests evaluating beats outside `N` and `V`:
